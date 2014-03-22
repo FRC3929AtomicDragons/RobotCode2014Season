@@ -33,7 +33,8 @@ public class RobotTemplate extends IterativeRobot {
     Jaguar shooterMotor2;
 
     //SENSORS DECLARATION
-    Joystick logi1;
+    Joystick driveLogi;
+    Joystick opLogi;
     Encoder driveLeftEncoder;
     Encoder driveRightEncoder;
     Encoder shooterEncoder;
@@ -41,9 +42,10 @@ public class RobotTemplate extends IterativeRobot {
     Timer timer;
 
     /*SHOOTER CONSTANTS*/
-    private double E1 = 325.0;
-    private double E2 = 375.0;
-    private double POWER_LEVEL = 1.0;
+    private double E1[] = {250.0, 200.0, 325.0};
+    private double E2[] = {285.0, 225.0, 375.0};
+    private double POWER_LEVEL[] = {0.9, 0.9, 1.0};
+    int shotIndex = 0;
 
     final int AUTO_SHOOTER_UP = 1;
     final int AUTO_SHOOTER_DOWN = 2;
@@ -61,13 +63,12 @@ public class RobotTemplate extends IterativeRobot {
     // Filter constants for velocity filter
     private final double ALPHA_VEL = 0.2;
     private final double VELOCITY_INNOVATION_LIMIT = 10000.0;
-    private double TARGET_DISTANCE = -100.0;
-    private double TARGET_VELOCITY = -100.0;
+    private double TARGET_DISTANCE = -400.0;
+    private double TARGET_VELOCITY = -125.0;
     public static final double DRIVE_ENCODER_DPP = ((Math.PI) * (2.54) * (4)) / (256.0);
     public static final double SHOOTER_ENCODER_DPP = 1;
 
     private double velEstimate = 0.0;
-
     /*PID CONSTANTS*/
     double kPvel = 1.0E-2;
     double kIvel = 0.0;
@@ -80,7 +81,8 @@ public class RobotTemplate extends IterativeRobot {
 
     public void robotInit() {
         //initializations
-        logi1 = new Joystick(1);
+        driveLogi = new Joystick(1);
+        opLogi = new Joystick(2);
         shooterMotor1 = new Jaguar(6);
         shooterMotor2 = new Jaguar(7);
         intake = new Victor(5);
@@ -94,11 +96,15 @@ public class RobotTemplate extends IterativeRobot {
         pidGyro = new PIDTool(kPgyro, kIgyro, kDgyro, 0.0);
 
         //Set up encoders + gyro correctly
-        SmartDashboard.putNumber("e1", E1);
-        SmartDashboard.putNumber("e2", E2);
-        SmartDashboard.putNumber("powerLevel", POWER_LEVEL);
-        SmartDashboard.putNumber("targetDistance", TARGET_DISTANCE);
-        SmartDashboard.putNumber("targetVelocity", TARGET_VELOCITY);
+        shotIndex = 0;
+        SmartDashboard.putNumber("e1auto", E1[shotIndex]);
+        SmartDashboard.putNumber("e2auto", E2[shotIndex]);
+        SmartDashboard.putNumber("powerLevelauto", POWER_LEVEL[shotIndex]);
+        SmartDashboard.putNumber("e1", E1[1]);
+        SmartDashboard.putNumber("e2", E2[1]);
+        SmartDashboard.putNumber("powerLevel", POWER_LEVEL[1]);
+        SmartDashboard.putNumber("targetDistanceauto", TARGET_DISTANCE);
+        SmartDashboard.putNumber("targetVelocityauto", TARGET_VELOCITY);
 
         // shooterEncoder.setReverseDirection(true);
         // driveLeftEncoder.setReverseDirection(true);
@@ -117,7 +123,9 @@ public class RobotTemplate extends IterativeRobot {
         autoMode = DRIVE_STRAIGHT;
         shooterMode = AUTO_SHOOTER_UP;
         gyro.reset();
+        shotIndex = 0;
         intake.set(1.0);
+        Timer.delay(2);
     }
 
     public void autonomousPeriodic() {
@@ -126,7 +134,7 @@ public class RobotTemplate extends IterativeRobot {
                 driveStraight(TARGET_VELOCITY);
 
                 if (driveLeftEncoder.getDistance() <= TARGET_DISTANCE) {
-                    Timer.delay(5);
+                    Timer.delay(2);
                     autoMode = AUTO_SHOOT;
                     shooterMode = AUTO_SHOOTER_UP;
                 }
@@ -147,59 +155,34 @@ public class RobotTemplate extends IterativeRobot {
         shooterEncoder.reset();
         resetDriveEncoders();
         startDriveEncoders();
-        E1 = SmartDashboard.getNumber("e1");
-        E2 = SmartDashboard.getNumber("e2");
-        TARGET_DISTANCE = SmartDashboard.getNumber("targetDistance");
-        TARGET_VELOCITY = SmartDashboard.getNumber("targetVelocity");
-        POWER_LEVEL = SmartDashboard.getNumber("powerLevel");
+        
+        E1[0] = SmartDashboard.getNumber("e1auto");
+        E2[0] = SmartDashboard.getNumber("e2auto");
+        TARGET_DISTANCE = SmartDashboard.getNumber("targetDistanceauto");
+        TARGET_VELOCITY = SmartDashboard.getNumber("targetVelocityauto");
+        POWER_LEVEL[0] = SmartDashboard.getNumber("powerLevelauto");
+        E1[1] = SmartDashboard.getNumber("e1");
+        E2[1] = SmartDashboard.getNumber("e2");
+        POWER_LEVEL[1] = SmartDashboard.getNumber("powerLevel");
+        // Replicate parameters in shot 1
+        shotIndex = 1;
         shooterEncoder.start();
     }
 
     public void teleopPeriodic() {
-        if(logi1.getRawButton(1)){
-            drivePeriodic(true);
-        }
-        else {
-            drivePeriodic(false);
-        }
+        drivePeriodic(driveLogi.getRawButton(1));
         intakePeriodic();
         shooterPeriodic();
         SmartDashboard.putNumber("right Encoder Rate", driveRightEncoder.getRate());
         SmartDashboard.putNumber("left Encoder rate", driveLeftEncoder.getRate());
         SmartDashboard.putNumber("gyro", gyro.getAngle());
-        SmartDashboard.putNumber("Shooter Encoder Rate",shooterEncoder.getRate() );
-        
-    }
+        SmartDashboard.putNumber("Shooter Encoder Rate", shooterEncoder.getRate());
 
-    public void testInit() {
-        //Put encoders and gyro on live window. I think we can comment out for competitions
-        driveLeftEncoder.startLiveWindowMode();
-        driveRightEncoder.startLiveWindowMode();
-        shooterEncoder.startLiveWindowMode();
-        gyro.startLiveWindowMode();
-    }
-
-    public void testPeriodic() {
-        System.out.println("gyro" + gyro.getAngle());
-        System.out.println("shooterEncoder" + shooterEncoder.getDistance());
-        System.out.println("rightEncoder" + driveRightEncoder.getRate());
-        System.out.println("leftEncoder" + driveLeftEncoder.getRate());
-        gyro.updateTable();
-        shooterEncoder.updateTable();
-        driveRightEncoder.updateTable();
-        driveLeftEncoder.updateTable();
-
-        if (logi1.getRawButton(10)) {
-            shooterEncoder.reset();
-        }
     }
 
     public void drivePeriodic(boolean turbo) {
-        if (!turbo) {
-            drive.arcadeDrive(0.5 * logi1.getY(), -logi1.getX() * 0.5);
-        } else {
-            drive.arcadeDrive(1.0 * logi1.getY(), -logi1.getX() * 1.0);
-        }
+        double scale = turbo ? 1.0 : 0.75;
+        drive.arcadeDrive(scale * driveLogi.getY(), -scale * driveLogi.getX());
     }
 
     public void driveStraight(double targetVelocity) {
@@ -218,12 +201,13 @@ public class RobotTemplate extends IterativeRobot {
         SmartDashboard.putNumber("left Encoder rate", driveLeftEncoder.getRate());
         System.out.println("vel estimate " + velEstimate);
         System.out.println("vel control " + velControl);
+        
     }
 
     public void intakePeriodic() {
-        if (logi1.getRawButton(3)) {
+        if (opLogi.getRawButton(4)) {
             intake.set(1.0);
-        } else if (logi1.getRawButton(2)) {
+        } else if (opLogi.getRawButton(5)) {
             intake.set(-1.0);
         } else {
             intake.set(0.0);
@@ -246,19 +230,28 @@ public class RobotTemplate extends IterativeRobot {
 
     public void manShooterPeriodic() {
         //eventually might put limit switch conditional in
-        if (logi1.getRawButton(4)) {
+        if (opLogi.getRawButton(6)) {
             shooterMotorsSet(1.0);
-        } else if (logi1.getRawButton(5)) {
+        } else if (opLogi.getRawButton(7)) {
             shooterMotorsSet(-0.45);
         } else {
             shooterMotorsSet(0.0);
         }
-
-        System.out.println("shooter encoder dist: " + shooterEncoder.getDistance());
-        if (logi1.getRawButton(9)) {
-            shooterEncoder.reset();
-            shooterMode = AUTO_SHOOTER_UP;
+        if(opLogi.getRawButton(11)){
+            shotIndex = 1;
+        } else if(opLogi.getRawButton(10)){
+            shotIndex = 2;
         }
+        
+        System.out.println("shooter encoder dist: " + shooterEncoder.getDistance());
+        if (opLogi.getRawButton(3)) autoShot(1);
+        if (opLogi.getRawButton(2)) autoShot(2);
+    }
+    
+    public void autoShot(int index) {
+        this.shotIndex = index;
+        shooterEncoder.reset();
+        shooterMode = AUTO_SHOOTER_UP;
     }
 
     public void autoShooterPeriodic() {
@@ -266,15 +259,15 @@ public class RobotTemplate extends IterativeRobot {
         double eDist = shooterEncoder.getDistance();
 
         //OVERRIDE AUTONOMOUS BUTTON
-        if (logi1.getRawButton(10)) {
+        if (opLogi.getRawButton(2)) {
             shooterMode = MAN_SHOOTER;
         }
         if (shooterMode == AUTO_SHOOTER_UP) {
-            if ((eDist < E1)) {
-                shooterMotorsSet(POWER_LEVEL);
-            } else if ((eDist > E1) && (eDist < E2)) {
-                shooterMotorsSet(0.75 * POWER_LEVEL);
-            } else if (eDist > E2) {
+            if ((eDist < E1[shotIndex])) {
+                shooterMotorsSet(POWER_LEVEL[shotIndex]);
+            } else if ((eDist > E1[shotIndex]) && (eDist < E2[shotIndex])) {
+                shooterMotorsSet(0.75 * POWER_LEVEL[shotIndex]);
+            } else if (eDist > E2[shotIndex]) {
                 shooterMotorsSet(0.0);
                 shooterMode = AUTO_SHOOTER_DOWN;
             }
